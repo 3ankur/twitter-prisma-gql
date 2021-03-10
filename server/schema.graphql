@@ -7,18 +7,41 @@ type AuthPayload {
   user: User
 }
 
+type Comment {
+  content: String!
+  createdAt: DateTime!
+  id: Int!
+  user: User
+}
+
 """
 A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
 """
 scalar DateTime
 
+type LikedTweet {
+  id: Int!
+  likedAt: DateTime!
+  tweet: Tweet
+  user: User
+}
+
 type Mutation {
+  createComment(content: String!, tweetId: Int!): Comment
   createDraft(data: PostCreateInput!): Post
+  createProfile(avatar: String!, bio: String!, location: String!, website: String!): Profile
+  createReply(commentId: Int!, content: String!, tweetId: Int!): Comment
+  createTweet(content: String!): Tweet
+  deleteFollow(id: Int!): following
+  deleteLike(id: Int!): LikedTweet
   deletePost(id: Int!): Post
+  follow(avatar: String!, followId: Int!, name: String!): following
   incrementPostViewCount(id: Int!): Post
+  likeTweet(id: Int!): LikedTweet
   login(email: String!, password: String!): AuthPayload
   signup(email: String!, name: String, password: String!): AuthPayload
   togglePublishPost(id: Int!): Post
+  updateProfile(avatar: String!, bio: String!, id: Int, location: String!, website: String!): Profile
 }
 
 type Post {
@@ -41,17 +64,37 @@ input PostOrderByUpdatedAtInput {
   updatedAt: SortOrder!
 }
 
+type Profile {
+  avatar: String!
+  bio: String!
+  createdAt: DateTime!
+  id: Int!
+  location: String!
+  user: User
+  website: String!
+}
+
 type Query {
   allUsers: [User!]!
   draftsByUser(userUniqueInput: UserUniqueInput!): [Post]
   feed(orderBy: PostOrderByUpdatedAtInput, searchString: String, skip: Int, take: Int): [Post!]!
   me: User
   postById(id: Int): Post
+  tweet(id: Int): Tweet
+  tweets: [Tweet!]!
 }
 
 enum SortOrder {
   asc
   desc
+}
+
+type Tweet {
+  author: User
+  content: String!
+  createdAt: DateTime!
+  id: Int!
+  likes: LikedTweet!
 }
 
 type User {
@@ -70,4 +113,12 @@ input UserCreateInput {
 input UserUniqueInput {
   email: String
   id: Int
+}
+
+type following {
+  avatar: String!
+  followId: Int!
+  id: Int!
+  name: String!
+  user: User
 }

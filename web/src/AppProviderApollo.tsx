@@ -20,13 +20,13 @@ function AppProviderApollo() {
     });
 
     const link = authLink.concat(httpLink);
-    const client= new ApolloClient({
+    const clientApp= new ApolloClient({
         link: link,
         cache: new InMemoryCache()
     })
 
     return (
-        <ApolloProvider client={client}>
+        <ApolloProvider client={clientApp}>
             <App/>
         </ApolloProvider>
     )

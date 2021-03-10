@@ -3,6 +3,8 @@ import { APP_SECRET, getUserId } from './utils'
 import { compare, hash } from 'bcryptjs'
 import { sign } from 'jsonwebtoken'
 import { applyMiddleware } from 'graphql-middleware'
+
+
 import {
   intArg,
   makeSchema,
@@ -52,6 +54,30 @@ const Query = objectType({
         })
       },
     })
+
+
+    t.nonNull.list.nonNull.field('tweets', {
+      type: 'Tweet',
+      resolve: (_parent, __, context: Context) => {
+        return context.prisma.tweet.findMany()
+      },
+    })
+
+
+    t.nullable.field('tweet', {
+      type: 'Tweet',
+      args: {
+        id: intArg(),
+      },
+      resolve: (_parent, args, context: Context) => {
+        return context.prisma.tweet.findUnique({
+          where: { id: args.id || undefined },
+        })
+      },
+    })
+
+    
+
 
     t.nonNull.list.nonNull.field('feed', {
       type: 'Post',
@@ -164,6 +190,178 @@ const Mutation = objectType({
       },
     })
 
+    t.field('createProfile',{
+      type: "Profile",
+      args: {
+        bio: nonNull(stringArg()),
+        location: nonNull(stringArg()),
+        avatar: nonNull(stringArg()),
+        website: nonNull(stringArg()),
+      },
+      resolve: (_, args, context: Context) => {
+        const userId = getUserId(context)
+        console.log(userId,args.bio)
+        return context.prisma.profile.create({
+          data: {
+           ...args,
+           User: { connect: { id: Number(userId) } }
+          },
+        })
+      }
+    })
+
+    t.field('updateProfile',{
+      type: "Profile",
+      args: {
+        id: intArg(),
+        bio: nonNull(stringArg()),
+        location: nonNull(stringArg()),
+        avatar: nonNull(stringArg()),
+        website: nonNull(stringArg()),
+      },
+      resolve: (_, {id,...args}, context: Context) => {
+        const userId = getUserId(context)
+        console.log(userId,args.bio)
+        return context.prisma.profile.update({
+          data: {
+           ...args,
+           User: { connect: { id: Number(userId) } }
+          },
+          where :{
+            id:Number(id)
+          }
+        })
+      }
+    })
+
+
+    
+
+    t.field('createTweet',{
+      type: "Tweet",
+      args: {
+        content: nonNull(stringArg())
+      },
+      resolve: (_, { content }, context: Context) => {
+        const userId = getUserId(context)
+        console.log(userId,content)
+        return context.prisma.tweet.create({
+          data: {
+           content,
+           author: { connect: { id: Number(userId) } }
+          },
+        })
+      }
+    })
+
+
+    t.field('likeTweet',{
+      type: "LikedTweet",
+      args: {
+        id: nonNull(intArg())
+      },
+      resolve: (_, args, context: Context) => {
+        const userId = getUserId(context)
+        console.log(userId,args)
+        return context.prisma.likedTweet.create({
+          data: {
+           user: { connect: { id: Number(userId) } },
+           tweet: {connect :{id: Number(args.id)} }
+          },
+        })
+      }
+    })
+
+    t.field("deleteLike", {
+			type: "LikedTweet",
+			args: {
+				id: nonNull(intArg())
+			},
+			resolve: (parent, { id }, ctx) => {
+				const userId = getUserId(ctx)
+				if (!userId) throw new Error("Could not authenticate user.")
+				return ctx.prisma.likedTweet.delete({
+					where: { id: id }
+				})
+			}
+		})
+
+    t.field("follow", {
+			type: "following",
+			args: {
+				name: nonNull(stringArg()),
+				followId: nonNull(intArg()),
+				avatar: nonNull(stringArg()),
+			},
+			resolve: (parent,  { name, followId, avatar }, ctx) => {
+				const userId = getUserId(ctx)
+				if (!userId) throw new Error("Could not authenticate user.")
+				return ctx.prisma.following.create({
+			   data:{
+          name,
+           followId,
+            avatar ,
+            user:{connect:{id:Number(userId)}}
+         }
+				})
+			}
+		})
+
+    t.field("deleteFollow", {
+			type: "following",
+			args: {
+				id: nonNull(intArg()),
+			},
+			resolve: (parent,  { id }, ctx) => {
+				const userId = getUserId(ctx)
+				if (!userId) throw new Error("Could not authenticate user.")
+				return ctx.prisma.following.delete({
+          where: { id: id }
+				})
+			}
+		})
+
+    t.field("createComment", {
+			type: "Comment",
+			args: {
+				content: nonNull(stringArg()),
+        tweetId: nonNull(intArg()),
+			},
+			resolve: (parent,  { content , tweetId }, ctx) => {
+				const userId = getUserId(ctx)
+				if (!userId) throw new Error("Could not authenticate user.")
+				return ctx.prisma.comment.create({
+          data:{
+            content,
+            user:{connect:{id: Number(userId)}},
+            Tweet: {connect:{id: Number(tweetId) }} 
+          }
+				})
+			}
+		})
+
+    t.field("createReply", {
+			type: "Comment",
+			args: {
+				content: nonNull(stringArg()),
+        tweetId: nonNull(intArg()),
+        commentId: nonNull(intArg()),
+			},
+			resolve: (parent,  { content , tweetId , commentId }, ctx) => {
+				const userId = getUserId(ctx)
+				if (!userId) throw new Error("Could not authenticate user.")
+				return ctx.prisma.comment.create({
+          data:{
+            content,
+            user:{connect:{id: Number(userId)}},
+            Tweet: {connect:{id: Number(tweetId) }} ,
+            Comment: {connect:{id: Number(commentId)}}
+          }
+				})
+			}
+		})
+
+
     t.field('createDraft', {
       type: 'Post',
       args: {
@@ -260,6 +458,120 @@ const User = objectType({
   },
 })
 
+const Profile = objectType({
+  name: 'Profile',
+  definition(t){
+    t.nonNull.int('id')
+    t.nonNull.field('createdAt', { type: 'DateTime' })
+    t.nonNull.string('bio')
+    t.nonNull.string('website')
+    t.nonNull.string('location')
+    t.nonNull.string('avatar')
+    t.field('user', {
+      type: 'User',
+      resolve: (parent, _, context: Context) => {
+        return context.prisma.user
+          .findUnique({
+            where: { id: getUserId(context) || undefined },
+          })
+         
+      },
+    })
+  }
+})
+
+
+const Tweet = objectType({
+  name: 'Tweet',
+  definition(t){
+    t.nonNull.int('id')
+    t.nonNull.field('createdAt', { type: 'DateTime' })
+    t.nonNull.string('content')
+    t.nonNull.field('likes',{type: LikedTweet})
+    t.field('author', {
+      type: 'User',
+      resolve: (parent, _, context: Context) => {
+        return context.prisma.user
+          .findUnique({
+            where: { id: getUserId(context) || undefined },
+          })
+        
+      },
+    })
+  }
+})
+
+
+
+const Comment = objectType({
+  name: 'Comment',
+  definition(t){
+    t.nonNull.int('id')
+    t.nonNull.field('createdAt', { type: 'DateTime' })
+    t.nonNull.string('content')
+    t.field('user', {
+      type: 'User',
+      resolve: (parent, _, context: Context) => {
+        return context.prisma.user
+          .findUnique({
+            where: { id: getUserId(context) || undefined },
+          })
+      },
+    })
+    
+  }
+})
+
+
+const Following = objectType({
+  name: 'following',
+  definition(t){
+    t.nonNull.int('id')
+    t.nonNull.int('followId')
+    t.nonNull.string('name')
+    t.nonNull.string('avatar')
+    t.field('user', {
+      type: 'User',
+      resolve: (parent, _, context: Context) => {
+        return context.prisma.user
+          .findUnique({
+            where: { id: getUserId(context) || undefined },
+          }) 
+      },
+    })
+  }
+})
+
+
+const LikedTweet = objectType({
+  name: 'LikedTweet',
+  definition(t){
+    t.nonNull.int('id')
+    t.nonNull.field('likedAt', { type: 'DateTime' })
+  //  t.nonNull.int('tweetId')
+    t.field('user', {
+      type: 'User',
+      resolve: (parent, _, context: Context) => {
+        return context.prisma.user
+          .findUnique({
+            where: { id: getUserId(context) || undefined },
+          }) 
+      },
+    })
+    t.field('tweet', {
+      type: 'Tweet',
+      resolve: (parent, _, context: Context) => {
+        console.log(parent);
+        return context.prisma.tweet
+          .findUnique({
+            where: { id: parent.id || undefined },
+          }) 
+      },
+    })
+  }
+})
+
+
 const Post = objectType({
   name: 'Post',
   definition(t) {
@@ -320,6 +632,16 @@ const UserCreateInput = inputObjectType({
   },
 })
 
+const ProfileCreateInput = inputObjectType({
+  name: 'ProfileCreateInput',
+  definition(t){
+    t.string('bio')
+    t.string('website')
+    t.string('avatar')
+    t.string('location')
+  }
+})
+
 const AuthPayload = objectType({
   name: 'AuthPayload',
   definition(t) {
@@ -341,6 +663,11 @@ const schemaWithoutPermissions = makeSchema({
     SortOrder,
     PostOrderByUpdatedAtInput,
     DateTime,
+    Profile,
+    Tweet,
+    LikedTweet,
+    Following,
+    Comment
   ],
   outputs: {
     schema: __dirname + '/../schema.graphql',
